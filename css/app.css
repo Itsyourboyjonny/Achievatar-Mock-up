@@ -233,3 +233,16 @@ p { margin: 0 0 10px; line-height: 1.45; }
 
 #crash { position: absolute; inset: 0; z-index: 200; background: var(--bg); padding: 60px 24px; text-align: center; overflow: auto; }
 #crash pre { white-space: pre-wrap; text-align: left; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 12px; font-size: 12px; color: var(--red-d); }
+
+/* profiles */
+.chip.me { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; border: 0; color: #fff; font: inherit; font-weight: 900; font-size: 16px; cursor: pointer; background: var(--muted); box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+.small-hero { padding: 24px 0 6px; }
+.user-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.user-card { position: relative; }
+.user-pick { width: 100%; display: grid; justify-items: center; gap: 4px; font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-bottom-width: 4px; border-radius: 20px; padding: 16px 8px 12px; cursor: pointer; }
+.user-pick:active { transform: translateY(2px); border-bottom-width: 2px; }
+.user-pick b { font-size: 16px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-pick small { color: var(--muted); font-weight: 700; font-size: 12px; }
+.user-av { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 28px; font-weight: 900; box-shadow: 0 4px 0 rgba(0,0,0,.15); }
+.user-pick.add { border-style: dashed; } .user-pick.add .user-av { background: var(--line); color: var(--muted); box-shadow: none; }
+.user-del { position: absolute; top: -8px; right: -8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--red); color: #fff; font-weight: 900; cursor: pointer; box-shadow: 0 2px 0 var(--red-d); }

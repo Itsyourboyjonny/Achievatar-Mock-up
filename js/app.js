@@ -7,14 +7,20 @@ import { AvatarView, lerpSpec, snapshot } from './avatar.js';
 import { analyzePhoto, loadImage, warmUp } from './scan.js';
 import { buildPath } from './lessons.js';
 
-const KEY = 'achievatar.v1';
-const OLD_KEY = 'forge.v1'; // pre-rename saves
+// Each person on this device gets their own profile; their data lives under
+// its own storage key. The index of profiles lives under USERS_KEY.
+const USERS_KEY = 'achievatar.users';
+const userKey = (id) => `achievatar.u.${id}`;
+const LEGACY_KEYS = ['achievatar.v1', 'forge.v1']; // single-user saves from earlier versions
+const COLORS = ['#58cc02', '#1cb0f6', '#ff9600', '#ce82ff', '#ff4b4b', '#2b70c9', '#ffc800', '#00cd9c'];
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const pct = (x) => `${Math.round(x * 100)}%`;
 const sgn = (x, d = 1) => `${x > 0 ? '+' : x < 0 ? '−' : '±'}${Math.abs(x).toFixed(d)}%`;
 
-let S = load();
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+let U = loadUsers();
+let S = fresh();
 let avatar;
 let tab = 'today';
 const ui = { view: 'dream', ghost: true, heat: false, kind: 'mus' };
@@ -22,8 +28,28 @@ const ui = { view: 'dream', ghost: true, heat: false, kind: 'mus' };
 function fresh() {
   return { v: 1, profile: null, baseline: null, intent: { mus: {}, fat: {} }, checkins: [], streak: { count: 0, last: null, best: 0 }, xp: 0, lessons: [], workoutsDone: 0, today: { date: null, done: [] } };
 }
-function load() { try { return JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY)) || fresh(); } catch { return fresh(); } }
+function loadUsers() {
+  try { const u = JSON.parse(localStorage.getItem(USERS_KEY)); if (u?.list) return u; } catch {}
+  const u = { list: [], current: null };
+  try {
+    // Move a pre-profiles save into a first profile so nobody loses progress.
+    const old = LEGACY_KEYS.map((k) => localStorage.getItem(k)).find(Boolean);
+    if (old) {
+      const id = Date.now().toString(36);
+      localStorage.setItem(userKey(id), old);
+      u.list.push({ id, name: 'Me', color: COLORS[0] });
+      localStorage.setItem(USERS_KEY, JSON.stringify(u));
+      LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
+    }
+  } catch {}
+  return u;
+}
+function saveUsers() { try { localStorage.setItem(USERS_KEY, JSON.stringify(U)); } catch {} }
+function loadState(id) { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(userKey(id))) }; } catch { return fresh(); } }
+const currentUser = () => U.list.find((u) => u.id === U.current);
 function save() {
+  if (!U.current) return;
+  const KEY = userKey(U.current);
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch {
     // Storage full: thin out the oldest photos (keep every other one) and retry.
@@ -73,6 +99,8 @@ function openModal(html, cls = '') { const m = $('#modal'); m.className = cls; m
 function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
 
 function updateTopbar() {
+  const me = currentUser();
+  if (me) { const b = $('#tb-me'); b.textContent = me.name.trim()[0]?.toUpperCase() || '?'; b.style.background = me.color; b.title = `${me.name} · switch user`; }
   $('#tb-streak b').textContent = streakAlive();
   $('#tb-streak').classList.toggle('lit', checkedInToday());
   $('#tb-xp b').textContent = S.xp;
@@ -96,7 +124,7 @@ $$('.tabbar button').forEach((b) => (b.onclick = () => showMain(b.dataset.tab)))
 function onboard(step, data = {}) {
   $('#main').hidden = true;
   const el = $('#onboard'); el.hidden = false; el.scrollTop = 0;
-  ({ welcome: obWelcome, profile: obProfile, scan: obScan, analyze: obAnalyze })[step](el, data);
+  ({ users: obUsers, welcome: obWelcome, profile: obProfile, scan: obScan, analyze: obAnalyze })[step](el, data);
 }
 
 function obWelcome(el) {
@@ -104,6 +132,7 @@ function obWelcome(el) {
     <div class="ob-hero">
       <div class="logo">ACHIEVATAR</div>
       <div class="mascot">🧬</div>
+      ${currentUser() ? `<div class="eyebrow">Welcome, ${esc(currentUser().name)}</div>` : ''}
       <h1>Become your own creation</h1>
       <p>Scan your body, design the version of you you're working toward, and get a daily plan to get there.</p>
     </div>
@@ -113,8 +142,10 @@ function obWelcome(el) {
       <li><b>🔥 Streaks</b>, lessons and daily check-ins</li>
       <li><b>📈 See</b> exactly where you've changed</li>
     </ul>
-    <button class="btn primary big" id="go">Get started</button>`;
+    <button class="btn primary big" id="go">Get started</button>
+    <button class="btn ghost" id="switch">← Switch user</button>`;
   $('#go').onclick = () => onboard('profile');
+  $('#switch').onclick = () => onboard('users');
   warmUp();
 }
 
@@ -641,7 +672,7 @@ function renderProgress(v) {
       <h3>Demo tools</h3>
       <p class="muted small">Try the app without two weeks of photos.</p>
       <button class="btn" id="sim14">Simulate 14 days of check-ins</button>
-      <button class="btn ghost danger-t" id="reset">Reset all data</button>
+      <button class="btn ghost danger-t" id="reset">Delete this user</button>
     </section>`;
 
   // weave player
@@ -681,7 +712,7 @@ function renderProgress(v) {
   av.set(currentSpec(P), { heat: change, ghost: null });
 
   $('#sim14', v).onclick = simulate14;
-  $('#reset', v).onclick = () => { if (confirm('Delete your scan, dream physique, photos and streak?')) { localStorage.removeItem(KEY); localStorage.removeItem(OLD_KEY); S = fresh(); onboard('welcome'); } };
+  $('#reset', v).onclick = () => { if (confirm(`Delete ${currentUser().name}'s scan, dream physique, photos and streak? This can't be undone.`)) deleteUser(U.current); };
 }
 
 function barStyle(val, cap = 12) {
@@ -716,5 +747,74 @@ function simulate14() {
 
 // ---------------------------------------------------------------- boot
 window.achievatarBooted = true;
-if (S.profile && S.baseline) showMain('today');
-else onboard(S.profile ? 'scan' : 'welcome');
+function switchUser(id) {
+  U.current = id; saveUsers();
+  S = loadState(id);
+  tab = 'today';
+  Object.assign(ui, { view: 'dream', ghost: true, heat: false, kind: 'mus' });
+  closeModal();
+  if (S.profile && S.baseline) showMain('today');
+  else onboard(S.profile ? 'scan' : 'welcome');
+}
+function deleteUser(id) {
+  try { localStorage.removeItem(userKey(id)); } catch {}
+  U.list = U.list.filter((u) => u.id !== id);
+  if (U.current === id) U.current = null;
+  saveUsers();
+  onboard('users');
+}
+
+// "Who's training?" screen: pick a profile, add one, or remove one.
+function obUsers(el, { manage = false, adding = false } = {}) {
+  const cards = U.list.map((u) => {
+    const st = loadState(u.id);
+    const alive = st.streak.last === localDate() || st.streak.last === addDays(localDate(), -1) ? st.streak.count : 0;
+    const sub = st.baseline ? `🔥 ${alive} · 💎 ${st.xp}` : 'Not scanned yet';
+    return `<div class="user-card">
+      <button class="user-pick" data-id="${u.id}"><span class="user-av" style="background:${u.color}">${esc(u.name.trim()[0]?.toUpperCase() || '?')}</span>
+        <b>${esc(u.name)}</b><small>${sub}</small></button>
+      ${manage ? `<button class="user-del" data-id="${u.id}" aria-label="Delete ${esc(u.name)}">✕</button>` : ''}
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="ob-hero small-hero">
+      <div class="logo">ACHIEVATAR</div>
+      <h1>${U.list.length ? 'Who\'s training?' : 'Become your own creation'}</h1>
+      <p class="muted">${U.list.length ? 'Pick your profile, or add someone new.' : 'Create a profile to start your first body scan.'}</p>
+    </div>
+    <div class="user-grid">${cards}
+      <div class="user-card"><button class="user-pick add" id="add"><span class="user-av">＋</span><b>New user</b><small>Start a fresh scan</small></button></div>
+    </div>
+    <form id="newuser" class="form" ${adding || !U.list.length ? '' : 'hidden'}>
+      <label>Name <input name="name" maxlength="24" placeholder="e.g. Jonny" autocomplete="off" required></label>
+      <button class="btn primary big">Create profile</button>
+    </form>
+    ${manage ? '<p class="muted small center">Tap a profile to rename it, or ✕ to delete it.</p>' : ''}
+    ${U.list.length ? `<button class="btn ghost" id="manage">${manage ? 'Done' : 'Manage profiles'}</button>` : ''}
+    <p class="muted small center">Profiles and photos are saved only in this browser on this device.</p>`;
+  $$('.user-pick[data-id]', el).forEach((b) => (b.onclick = () => {
+    if (!manage) return switchUser(b.dataset.id);
+    const u = U.list.find((x) => x.id === b.dataset.id);
+    const name = prompt('Rename profile', u.name)?.trim().slice(0, 24);
+    if (name) { u.name = name; saveUsers(); obUsers(el, { manage: true }); }
+  }));
+  $$('.user-del', el).forEach((b) => (b.onclick = () => {
+    const u = U.list.find((x) => x.id === b.dataset.id);
+    if (confirm(`Delete ${u.name}'s profile, photos and progress? This can't be undone.`)) { deleteUser(u.id); onboard('users', { manage: true }); }
+  }));
+  $('#add', el).onclick = () => { const f = $('#newuser', el); f.hidden = false; $('input', f).focus(); };
+  $('#manage', el) && ($('#manage', el).onclick = () => obUsers(el, { manage: !manage }));
+  $('#newuser', el).onsubmit = (e) => {
+    e.preventDefault();
+    const name = new FormData(e.target).get('name').trim();
+    if (!name) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    U.list.push({ id, name, color: COLORS[U.list.length % COLORS.length] });
+    saveUsers();
+    switchUser(id);
+  };
+  if (!U.list.length) $('#newuser input', el).focus();
+}
+
+$('#tb-me').onclick = () => onboard('users');
+onboard('users');
