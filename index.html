@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#58cc02" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Achievatar — Become your own creation</title>
+  <meta name="description" content="Achievatar: scan your body, design your dream physique in 3D, and become your own creation." />
+  <meta name="apple-mobile-web-app-title" content="Achievatar" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="phone">
+    <section id="onboard" class="screen"></section>
+
+    <main id="main" hidden>
+      <header class="topbar">
+        <div class="chip streak" id="tb-streak" title="Day streak">🔥 <b>0</b></div>
+        <div class="chip xp" id="tb-xp" title="XP">💎 <b>0</b></div>
+        <div class="chip prog" id="tb-prog" title="Progress to dream physique">
+          <span class="minibar"><i></i></span><b>0%</b>
+        </div>
+      </header>
+      <div id="view"></div>
+      <nav class="tabbar">
+        <button data-tab="today"><span>🏋️</span>Today</button>
+        <button data-tab="dream"><span>🧬</span>Dream</button>
+        <button data-tab="learn"><span>🎓</span>Learn</button>
+        <button data-tab="eat"><span>🥗</span>Eat</button>
+        <button data-tab="progress"><span>📈</span>Progress</button>
+      </nav>
+    </main>
+
+    <div id="modal" hidden></div>
+    <div id="toast" hidden></div>
+  </div>
+  <script>
+    // Crash screen: show what broke instead of a frozen or blank app.
+    function achievatarCrash(msg) {
+      if (document.getElementById('crash')) return;
+      const d = document.createElement('div');
+      d.id = 'crash';
+      d.innerHTML = '<div class="big-emoji">🛠️</div><h2>Something broke</h2><p class="muted">Your data is saved on this device.</p><pre></pre><button class="btn primary big" onclick="location.reload()">Reload</button>';
+      d.querySelector('pre').textContent = msg;
+      (document.getElementById('phone') || document.body).appendChild(d);
+    }
+    addEventListener('error', (e) => achievatarCrash(e.message + (e.filename ? '\n' + e.filename.split('/').pop() + ':' + e.lineno : '')));
+    addEventListener('unhandledrejection', (e) => achievatarCrash(String((e.reason && e.reason.message) || e.reason)));
+    setTimeout(() => { if (!window.achievatarBooted) achievatarCrash('The app did not start. Check your internet connection (3D and scan libraries load online).'); }, 12000);
+  </script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
